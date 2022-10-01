@@ -194,14 +194,30 @@ impl Contract {
         assert_one_yocto();
         self.assert_owner();
 
+        let lottery_type = LotteryType::from(lottery_type);
+
+        let has_active_lottery = self
+            .lotteries
+            .values()
+            .any(|lottery| {
+                lottery.num_participants() == num 
+                    && lottery.status() == LotteryStatus::Active
+            });
+
         let mut config = self.internal_config();
 
-        if lottery_type == SIMPLE_LOTTERY.to_string() {
-            config.lotteries_config.remove_num_participants(num);
-        } else if lottery_type == BIG_LOTTERY.to_string() {
-            config.lotteries_config.remove_big_lottery_num_participants(num);
+        if !has_active_lottery {
+            match lottery_type {
+                LotteryType::SimpleLottery => {
+                    config.lotteries_config.remove_num_participants(num);
+                },
+                LotteryType::BigLottery => {
+                    config.lotteries_config.remove_big_lottery_num_participants(num);
+                },
+            }
+        } else {
+            panic!("Contract has active lottery");
         }
-
         config.lotteries_config.assert_valid();
         self.config.set(&config);
     }

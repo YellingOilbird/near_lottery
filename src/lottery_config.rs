@@ -36,10 +36,11 @@ impl LotteryConfig {
     }
 
     pub fn add_num_participants(&mut self, num: u32) {
-        self.num_participants.push(num)
+        self.num_participants.push(num);
     }
 
     pub fn remove_num_participants(&mut self, num: u32) {
+        assert!(self.num_participants.len() >= 1, "Cannot remove last lottery num_participants");
         let index = self.num_participants.iter().position(|x| x == &num).expect("invalid num to remove");
         self.num_participants.remove(index);
     }
@@ -49,6 +50,7 @@ impl LotteryConfig {
     }
 
     pub fn remove_big_lottery_num_participants(&mut self, num: u32) {
+        assert!(self.big_lottery_num_participants.len() > 1, "Cannot remove last lottery num_participants");
         let index = self.big_lottery_num_participants.iter().position(|x| x == &num).expect("invalid num to remove");
         self.big_lottery_num_participants.remove(index);
     }

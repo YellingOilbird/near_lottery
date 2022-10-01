@@ -32,6 +32,13 @@ impl Lottery {
         }
     }
 
+    pub fn status(&self) -> LotteryStatus {
+        match self {
+            Lottery::SimpleLottery(lottery) => lottery.lottery_status,
+            Lottery::Lottery(lottery) => lottery.lottery_status,
+        }
+    }
+
     pub fn num_participants(&self) -> u32 {
         match self {
             Lottery::SimpleLottery(lottery) => (lottery.required_pool / lottery.entry_fee) as _,
