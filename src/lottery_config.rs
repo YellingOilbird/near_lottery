@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::*;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Copy, Clone, Debug)]
@@ -30,7 +32,7 @@ impl From<String> for LotteryType {
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct LotteryConfig {
-    pub entry_fees: Vec<U128>,
+    pub entry_fees: HashMap<AccountId, Vec<U128>>,
     pub num_participants: Vec<u32>,
     pub big_lottery_num_participants: Vec<u32>
 }
@@ -62,13 +64,46 @@ impl LotteryConfig {
         self.big_lottery_num_participants.remove(index);
     }
 
-    pub fn add_entry_fee(&mut self, fee: U128) {
-        self.entry_fees.push(fee)
+    pub fn add_entry_fee(&mut self, token_id: Option<AccountId>, fee: U128) {
+        if let Some(token_id) = token_id {
+            self
+                .entry_fees
+                .entry(token_id)
+                .or_insert(vec![])
+                .push(fee)
+        } else {
+            self
+                .entry_fees
+                .entry(near())
+                .or_insert(vec![])
+                .push(fee)
+        }
     }
 
-    pub fn remove_entry_fee(&mut self, fee: U128) {
-        let index = self.entry_fees.iter().position(|x| x == &fee).expect("invalid fee to remove");
-        self.entry_fees.remove(index);
+    pub fn remove_entry_fee(&mut self, token_id: Option<AccountId>, fee: U128) {
+        let (index, token) = if let Some(token_id) = token_id {
+            let position = self
+                .entry_fees
+                .entry(token_id.clone())
+                .or_insert(vec![])
+                .iter()
+                .position(|x| x == &fee).expect("invalid fee to remove");
+            (position, token_id)
+        } else {
+            let position = self
+                .entry_fees
+                .entry(near())
+                .or_insert(vec![])
+                .iter()
+                .position(|x| x == &fee).expect("invalid fee to remove");
+            (position, near())
+        };
+        
+        self
+            .entry_fees
+            .entry(token)
+            .or_insert(vec![])
+            .remove(index);
     }
 }
 

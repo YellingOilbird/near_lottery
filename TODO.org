@@ -1,0 +1,3 @@
+- refferer always get crop (1%) from user entry fee
+- usdt entry fees list
+- drop lottery id?

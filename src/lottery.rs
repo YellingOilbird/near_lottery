@@ -387,7 +387,7 @@ impl Contract {
         num_participants: u32,
         entry_fee: Balance
     ) -> Lottery {
-        self.assert_required_entry_fees(entry_fee, lottery_type);
+        self.assert_required_entry_fees(&lottery_token_id, entry_fee, lottery_type);
         self.assert_required_num_participants(num_participants, lottery_type);
 
         let lottery_id = self.next_lottery_id;

@@ -125,7 +125,7 @@ near call usdn.testnet ft_transfer_call '{
   "receiver_id": "'$CONTRACT'",
   "amount": "'$ONE_USN'",
   "msg": "{\"DrawEnter\": {\"num_participants\":5, \"lottery_type\":\"SIMPLE_LOTTERY\"}}"
-}' --accountId=rmlsnk.testnet --depositYocto 1 --gas=200000000000000
+}' --accountId=$USER_5 --depositYocto 1 --gas=200000000000000
 near view $CONTRACT get_lottery '{
     "lottery_id": 0
 }'
@@ -168,7 +168,7 @@ near call $CONTRACT add_num_participants '{
 near view $CONTRACT get_contract_params '{}'
 
 near call $CONTRACT add_entry_fee '{
-    "entry_fee": "'$TEN_NEAR'"
+    "entry_fee": "'$ONE_USN'"
 }' --accountId $OWNER --depositYocto=1 --gas=$GAS
 
 near view $CONTRACT get_contract_params '{}'
@@ -180,3 +180,10 @@ near call $CONTRACT remove_entry_fee '{
 near view $CONTRACT get_contract_params '{}'
 
 ```
+
+#### dev
+
+near call usdn.testnet ft_transfer '{
+    "receiver_id": "'$USER_5'",
+    "amount": "'$ONE_USN'"
+}' --accountId rmlsnk.testnet --depositYocto=1 --gas=$GAS

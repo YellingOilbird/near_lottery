@@ -70,6 +70,8 @@ impl Contract {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use crate::fungible_token::TokenReceiverMsg;
 
     use super::*;
@@ -112,6 +114,9 @@ mod tests {
     }
 
     fn create_config() -> Config {
+        let mut entry_fees:HashMap<AccountId, Vec<U128>> = HashMap::new();
+        let near_entry_fees:Vec<U128> = vec![ONE_NEAR.into(), (3 * ONE_NEAR).into(), (5 * ONE_NEAR).into()];
+        entry_fees.insert(near(), near_entry_fees);
         let config = Config {
             owner_id: owner(),
             contract_fee_ratio: 1000, //10%
@@ -121,7 +126,7 @@ mod tests {
             investor: user("investor.near"),
             lotteries_config: 
                 LotteryConfig { 
-                    entry_fees: vec![ONE_NEAR.into(), (3 * ONE_NEAR).into(), (5 * ONE_NEAR).into()], 
+                    entry_fees, 
                     num_participants: vec![5, 6, 7, 8, 9, 10],
                     big_lottery_num_participants: vec![50]
                 }
@@ -339,19 +344,19 @@ mod tests {
         let (mut contract, mut context) = contract_context();
         owner_env(&mut context);
 
-        contract.add_entry_fee(U128(20 * ONE_NEAR));
+        contract.add_entry_fee(Some(near()), U128(20 * ONE_NEAR));
         assert!(
             contract.get_contract_params()
                 .config
                 .entry_fees_required
-                .contains(&U128(20 * ONE_NEAR))
+                .contains(&(near(), vec![U128(20 * ONE_NEAR)]))
         );
-        contract.remove_entry_fee(U128(20 * ONE_NEAR));
+        contract.remove_entry_fee(Some(near()), U128(20 * ONE_NEAR));
         assert!(
             !contract.get_contract_params()
                 .config
                 .entry_fees_required
-                .contains(&U128(20 * ONE_NEAR))
+                .contains(&(near(), vec![U128(20 * ONE_NEAR)]))
         );
         contract.add_num_participants(25, SIMPLE_LOTTERY.to_string());
         contract.add_num_participants(25, BIG_LOTTERY.to_string());

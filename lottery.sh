@@ -57,7 +57,8 @@ export USER_49=dev-1664735236805-57354604957430
 export USER_50=dev-1662975414616-70327018481535
 export GAS=300000000000000
 
-END=50
+#big lottery
+END=50 #num of participants
 EXPECTED_LOTTERY_ID=3
 for ((i=0;i<=END;i++)); do
     user=USER_$i
@@ -71,8 +72,8 @@ for ((i=0;i<=END;i++)); do
         "lottery_id": EXPECTED_LOTTERY_ID
     }'
 done
-
-END=5
+#simple lottery
+END=5 #num of participants
 EXPECTED_LOTTERY_ID=4
 for ((i=0;i<=END;i++)); do
     user=USER_$i

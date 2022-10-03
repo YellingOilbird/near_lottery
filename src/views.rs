@@ -32,7 +32,7 @@ pub struct ConfigView {
     /// fees taken from prize pool to contract
     pub contract_fee_ratio: u32,
     /// lotteries config
-    pub entry_fees_required: Vec<U128>,
+    pub entry_fees_required: Vec<(AccountId, Vec<U128>)>,
     pub num_participants_required: Vec<(LotteryType, Vec<u32>)>
 }
 
@@ -60,7 +60,9 @@ impl Contract {
             contract_fee_ratio: config_internal.contract_fee_ratio,
             entry_fees_required: config_internal
                 .lotteries_config
-                .entry_fees,
+                .entry_fees
+                .into_iter()
+                .collect(),
             num_participants_required: vec![
                 (LotteryType::SimpleLottery, config_internal.lotteries_config.num_participants),
                 (LotteryType::BigLottery, config_internal.lotteries_config.big_lottery_num_participants),

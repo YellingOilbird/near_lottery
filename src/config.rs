@@ -83,20 +83,23 @@ impl Contract {
         );
     }
 
-    pub (crate) fn assert_required_entry_fees(&self, amount: Balance, lottery_type: LotteryType) {
+    pub (crate) fn assert_required_entry_fees(&self, token_id: &AccountId, amount: Balance, lottery_type: LotteryType) {
+        let config = self.internal_config();
         let required_entry_fees = match lottery_type {
             LotteryType::SimpleLottery => {
-                self
-                    .internal_config()
+                config
                     .lotteries_config
                     .entry_fees
+                    .get(token_id)
+                    .expect("No required fees for token")
             },
             LotteryType::BigLottery => {
-                self
-                    .internal_config()
+                config
                     .lotteries_config
                     .entry_fees
-            },
+                    .get(token_id)
+                    .expect("No required fees for token")
+            }
         };
         assert!(
             required_entry_fees.contains(&amount.into()),
@@ -240,12 +243,12 @@ impl Contract {
     /// - Requires one yoctoNEAR.
     /// - Requires to be called by the contract owner.
     #[payable]
-    pub fn add_entry_fee(&mut self, entry_fee: U128) {
+    pub fn add_entry_fee(&mut self, token_id: Option<AccountId>, entry_fee: U128) {
         assert_one_yocto();
         self.assert_owner();
 
         let mut config = self.internal_config();
-        config.lotteries_config.add_entry_fee(entry_fee);
+        config.lotteries_config.add_entry_fee(token_id, entry_fee);
         config.lotteries_config.assert_valid();
 
         self.config.set(&config);
@@ -254,12 +257,12 @@ impl Contract {
     /// - Requires one yoctoNEAR.
     /// - Requires to be called by the contract owner.
     #[payable]
-    pub fn remove_entry_fee(&mut self, entry_fee: U128) {
+    pub fn remove_entry_fee(&mut self, token_id: Option<AccountId>, entry_fee: U128) {
         assert_one_yocto();
         self.assert_owner();
 
         let mut config = self.internal_config();
-        config.lotteries_config.remove_entry_fee(entry_fee);
+        config.lotteries_config.remove_entry_fee(token_id, entry_fee);
         config.lotteries_config.assert_valid();
 
         self.config.set(&config);
