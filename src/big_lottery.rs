@@ -24,6 +24,7 @@ pub enum WinnerType {
 #[serde(crate = "near_sdk::serde")]
 pub struct BigLottery {
     pub id: LotteryId,
+    pub lottery_token_id: AccountId,
     pub lottery_status: LotteryStatus,
     /// A list of account_ids in this lottery
     pub entries: Vec<AccountId>,
@@ -33,7 +34,7 @@ pub struct BigLottery {
     pub current_pool: Balance,
     /// Required total amount for lottery to start
     pub required_pool: Balance,
-    pub winners: HashMap<WinnerType, AccountId>,
+    pub winners: HashMap<WinnerType, Vec<AccountId>>,
     pub cashbacked_num: u32,
     pub ten_percent_winners_num: u32,
     pub fifty_percent_winners_num: u32,
@@ -42,6 +43,7 @@ pub struct BigLottery {
 impl BigLottery {
     pub fn new(
         id: LotteryId,
+        lottery_token_id: AccountId,
         num_participants: u32,
         entry_fee: Balance 
     ) -> Self {
@@ -56,6 +58,7 @@ impl BigLottery {
         assert!(required_pool % 2 == 0, "required_pool must be divisible by two");
         let lottery = Self {
             id,
+            lottery_token_id,
             lottery_status: LotteryStatus::Active,
             entries: vec![],
             entry_fee,
@@ -99,6 +102,12 @@ impl BigLottery {
         }
     }
 
+    // fn contains_entry(&self, account_id: &AccountId) -> bool {
+    //     self.entries
+    //         .iter()
+    //         .any(|entry| &entry.account_id == account_id)
+    // }
+
     pub fn assert_is_finished(&self) {
         self.assert_equals_pool();
         assert!(!self.winners.is_empty());
@@ -113,7 +122,7 @@ impl BigLottery {
     }
 
     /// Draw lottery entry
-    pub fn draw_near_enter(&mut self, account_id: &AccountId, amount: Balance) -> (LotteryStatus, Balance) {
+    pub fn draw_enter(&mut self, account_id: &AccountId, amount: Balance) -> LotteryStatus {
         if !self.is_finished() {
             assert_eq!(
                 amount, self.entry_fee,
@@ -123,60 +132,60 @@ impl BigLottery {
             assert!(!self.entries.contains(account_id), "Already entered");
             self.entries.push(account_id.clone());
             self.current_pool += amount;
-            // check is required pool filled now and always return a lottery status
-            (self.update(), 0)
-        } else {
-            (self.update(), amount)
         }
+
+        // check is required pool filled now and always return a lottery status
+        self.update()
     }
 
     fn set_winner(&mut self) {
         // 50 accounts
         let total_entries = self.entries.len();
-        assert!(total_entries <= 64, "Unexpected random result for more than 64 participants");
-        // 32 random bytes
-        let random_seed = env::random_seed_array().to_vec();
-        let random_seed_taken:Vec<_> = random_seed
-            .iter()
-            .take(total_entries / 2)
-            .collect();
+        let shuffled_entries = shuffle(self.entries.clone());
+        check_account_duplicates(&shuffled_entries);
 
-        let mut random_order_vector:Vec<AccountId> = vec![];
+        let up_to_fifty_num = self.fifty_percent_winners_num as usize;
+        let up_to_ten_num = self.ten_percent_winners_num as usize;
 
-        for seed_byte in random_seed_taken {
-            let seed_byte = *seed_byte as usize;
-            let account = self.entries[seed_byte%total_entries].clone();
-            self.entries.remove(seed_byte%total_entries);
-            random_order_vector.push(account);
-        }
+        let up_to_fifty_vec = &shuffled_entries[..up_to_fifty_num];
+        let up_to_ten_vec = &shuffled_entries[up_to_fifty_num..up_to_ten_num + up_to_fifty_num];
+        let cashback_vec = &shuffled_entries[up_to_ten_num + up_to_fifty_num..];
 
-        for index in 0..self.fifty_percent_winners_num {
-            self.winners.insert(WinnerType::UpToFiftyPercent, random_order_vector[index as usize].clone());
-        }
+        assert_eq!(cashback_vec.len(), total_entries / 2, "Incorrect cashback accounts num");
+        assert_eq!(up_to_fifty_vec.len(), up_to_fifty_num, "Incorrect winners +50% accounts num");
+        assert_eq!(up_to_ten_vec.len(), up_to_ten_num, "Incorrect winners +10% accounts num");
 
-        for index in self.fifty_percent_winners_num..self.cashbacked_num {
-            self.winners.insert(WinnerType::UpToTenPercent, random_order_vector[index as usize].clone());
-        }
+        assert!(
+            up_to_fifty_num + up_to_ten_num == total_entries / 2,
+            "Mismatched len of rewarded and cashback accounts: Rewarded {} Cashback {}",
+            up_to_fifty_num + up_to_ten_num, total_entries / 2,
+        );
 
-        for account_id in self.entries.iter() {
-            self.winners.insert(WinnerType::Cashback, account_id.clone());
-        }
-        //TODO - add
-        //assert_eq!(self.winners.len(), total_entries, "Mismatched winners/entries for a big lottery");
-        //assert!(self.entries.is_empty(), "All Entries must migrate to winners");
-        check_account_duplicates(self.winners.values().cloned().collect());
+        self.winners.insert(WinnerType::UpToFiftyPercent, up_to_fifty_vec.to_vec());
+        self.winners.insert(WinnerType::UpToTenPercent, up_to_ten_vec.to_vec());
+        self.winners.insert(WinnerType::Cashback, cashback_vec.to_vec());
     }
 
-    pub fn get_winners(&self) -> HashMap<WinnerType, AccountId> {
-        self.winners.clone()
+    pub fn get_winners(&self, winner_type: WinnerType) -> &[AccountId] {
+        match winner_type {
+            WinnerType::UpToFiftyPercent => {
+                self.winners.get(&WinnerType::UpToFiftyPercent).expect("No required winners found")
+            },
+            WinnerType::UpToTenPercent => {
+                self.winners.get(&WinnerType::UpToTenPercent).expect("No required winners found")
+            },
+            WinnerType::Cashback => {
+                self.winners.get(&WinnerType::Cashback).expect("No required winners found")
+            },
+        }
     }
 }
 
-fn check_account_duplicates(checked_vec: Vec<AccountId>) {
+fn check_account_duplicates(checked_vec: &Vec<AccountId>) {
     let mut dedup = checked_vec.clone();
     dedup.dedup();
     assert_eq!(
-        dedup, checked_vec,
+        &dedup, checked_vec,
         "Duplicated accounts found"
     )
 }

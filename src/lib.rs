@@ -1,5 +1,5 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, UnorderedMap};
+use near_sdk::collections::{LazyOption, UnorderedMap, UnorderedSet};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
@@ -7,7 +7,11 @@ use near_sdk::{
     PanicOnDefault, Promise,
 };
 
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
+
 mod config;
+mod fungible_token;
 mod lottery;
 mod lottery_config;
 mod big_lottery;
@@ -27,7 +31,10 @@ pub type LotteryId = u64;
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Config,
-    Lotteries
+    Fees,
+    Lotteries,
+    Cashbacks,
+    WhitelistedTokens
 }
 
 #[near_bindgen]
@@ -35,10 +42,14 @@ enum StorageKey {
 pub struct Contract {
     pub config: LazyOption<Config>,
     pub lotteries: UnorderedMap<LotteryId, Lottery>,
+    /// a list of allowed fungible tokens
+    pub whitelisted_tokens: UnorderedSet<AccountId>,
     /// contract fees balance
-    pub fees: Balance,
+    pub fees: UnorderedMap<AccountId, Balance>,
     /// counter for lotteries
-    pub next_lottery_id: LotteryId
+    pub next_lottery_id: LotteryId,
+    /// buffer for accounts to cashback transfer
+    pub cashback_accounts: UnorderedMap<AccountId, StoredCashback>
 }
 
 #[near_bindgen]
@@ -48,16 +59,21 @@ impl Contract {
         config.assert_valid();
         Self {
             config: LazyOption::new(StorageKey::Config, Some(&config)),
+            whitelisted_tokens: UnorderedSet::new(StorageKey::WhitelistedTokens),
             lotteries: UnorderedMap::new(StorageKey::Lotteries),
-            fees: 0,
-            next_lottery_id: 0
+            fees: UnorderedMap::new(StorageKey::Fees),
+            next_lottery_id: 0,
+            cashback_accounts: UnorderedMap::new(StorageKey::Cashbacks)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::fungible_token::TokenReceiverMsg;
+
     use super::*;
+    use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
     use near_sdk::ONE_NEAR;
     // use near_contract_standards::{
     //     storage_management::StorageManagement,
@@ -69,6 +85,10 @@ mod tests {
 
     fn user(user: &str) -> AccountId {
         user.parse().unwrap()
+    }
+
+    fn token(token: &str) -> AccountId {
+        token.parse().unwrap()
     }
 
     fn owner() -> AccountId {
@@ -101,7 +121,7 @@ mod tests {
             investor: user("investor.near"),
             lotteries_config: 
                 LotteryConfig { 
-                    entry_fees: vec![ONE_NEAR, 3 * ONE_NEAR, 5 * ONE_NEAR], 
+                    entry_fees: vec![ONE_NEAR.into(), (3 * ONE_NEAR).into(), (5 * ONE_NEAR).into()], 
                     num_participants: vec![5, 6, 7, 8, 9, 10],
                     big_lottery_num_participants: vec![50]
                 }
@@ -138,6 +158,62 @@ mod tests {
         )
     }
 
+    fn enter_lottery_ft(
+        token_id: &str,
+        contract: &mut Contract,
+        context: &mut VMContextBuilder,
+        user: &AccountId,
+        lottery_type: String,
+        entry_fee: U128,
+        lottery_num_participants: u32,
+        is_first: bool,
+        is_last: bool,
+        referrer_id: Option<AccountId>
+    ) {
+        let token_receiver_msg = near_sdk::serde_json::to_string(
+            &TokenReceiverMsg::DrawEnter {
+                num_participants: lottery_num_participants,
+                lottery_type,
+                referrer_id
+            }
+        )
+        .expect("Parse repay FT error");
+
+        let token_id = token(token_id);
+        testing_env!(context
+            .predecessor_account_id(token_id)
+            .attached_deposit(ONE_YOCTO)
+            .build()
+        );
+        let prev_lotteries_num = contract.get_lotteries_num();
+        contract
+            .ft_on_transfer(
+                user.clone(),
+                entry_fee,
+                token_receiver_msg
+            );
+
+        if is_last {
+            assert!(contract.get_lottery(0).is_none());
+            return;
+        }
+
+        let lottery = contract.get_lottery(0).unwrap();
+        let entries_num = lottery.entries.len();
+        let current_pool = lottery.current_pool.0;
+        if is_first {
+            assert!(contract.get_lotteries_num() ==  prev_lotteries_num + 1, "contract expected added new lottery instance");
+            assert_eq!(entries_num, 1);
+            assert_eq!(current_pool, entry_fee.0);
+        }
+
+        assert_eq!(lottery.entry_fee.0, entry_fee.0);
+        assert_eq!(lottery.required_pool.0, entry_fee.0 * lottery_num_participants as u128);
+        println!(
+            "{:#?}", lottery
+        );
+    }
+
     fn enter_lottery(
         contract: &mut Contract,
         context: &mut VMContextBuilder,
@@ -147,6 +223,7 @@ mod tests {
         lottery_num_participants: u32,
         is_first: bool,
         is_last: bool,
+        referrer_id: Option<AccountId>
     ) -> (usize, Balance) {
         testing_env!(context
             .predecessor_account_id(user.clone())
@@ -154,7 +231,7 @@ mod tests {
             .build()
         );
         let prev_lotteries_num = contract.get_lotteries_num();
-        let lottery_id = contract.draw_near_enter(lottery_type, lottery_num_participants, entry_fee);
+        let lottery_id = contract.draw_near_enter(lottery_type, lottery_num_participants, referrer_id);
 
         if is_last {
             assert!(contract.get_lottery(lottery_id).is_none());
@@ -189,7 +266,8 @@ mod tests {
             U128(3 * ONE_NEAR), 
             6u32,
             true,
-            false
+            false,
+            None
         );
     } 
 
@@ -205,7 +283,8 @@ mod tests {
             U128(ONE_NEAR), 
             5u32,
             true,
-            false
+            false,
+            None
         );
 
         enter_lottery(
@@ -216,7 +295,8 @@ mod tests {
             U128(ONE_NEAR), 
             5u32,
             true,
-            false
+            false,
+            None
         );
     } 
 
@@ -232,7 +312,8 @@ mod tests {
             U128(ONE_NEAR * 4), 
             5u32,
             true,
-            false
+            false,
+            None
         );
     }
 
@@ -248,7 +329,8 @@ mod tests {
             U128(ONE_NEAR), 
             11u32,
             true,
-            false
+            false,
+            None
         );
     } 
 
@@ -310,7 +392,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             true,
-            false
+            false,
+            None
         );
         enter_lottery(
             &mut contract, 
@@ -320,7 +403,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             false,
-            false
+            false,
+            None
         );
         enter_lottery(
             &mut contract, 
@@ -330,7 +414,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             false,
-            false
+            false,
+            None
         );
         enter_lottery(
             &mut contract, 
@@ -340,7 +425,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             false,
-            false
+            false,
+            None
         );
         enter_lottery(
             &mut contract, 
@@ -350,7 +436,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             false,
-            false
+            false,
+            None
         );
         enter_lottery(
             &mut contract, 
@@ -360,7 +447,8 @@ mod tests {
             U128(ONE_NEAR * 3), 
             6u32,
             false,
-            true
+            true,
+            None
         );
 
         let params = contract.get_contract_params();
@@ -368,7 +456,7 @@ mod tests {
         // 0% and 40% takes from contract fees to investor and treasury
         let keeped_fees = ratio(contract_fees, 6000);
         assert_eq!(
-            params.fees_collected.0, keeped_fees,
+            params.fees_collected[0], (near(), U128(keeped_fees)),
             "Mismatched fees collected"
         );
         println!(
@@ -377,7 +465,103 @@ mod tests {
         //4950000000000000000000000
         //0.05 -> 0.03 to treasury, 0.005 to investor, 0.15 keeped
         //30000000000000000000000 + 5000000000000000000000 + 15000000000000000000000
-    } 
+    }
+    
+    #[test]
+    fn test_finished_lottery_usdt() {
+        let (mut contract, mut context) = contract_context();
+        owner_env(&mut context);
+        contract.whitelist_token(token("usdt.near"));
+        assert!(contract.get_contract_params().whitelisted_tokens.contains(&(token("usdt.near"))));
+
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user1.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            true,
+            false,
+            Some(user("referrer.near"))
+        );
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user2.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            false,
+            false,
+            Some(user("referrer.near"))
+        );
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user3.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            false,
+            false,
+            Some(user("referrer.near"))
+        );
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user4.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            false,
+            false,
+            Some(user("referrer.near"))
+        );
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user5.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            false,
+            false,
+            Some(user("referrer.near"))
+        );
+        enter_lottery_ft(
+            "usdt.near",
+            &mut contract, 
+            &mut context, 
+            &user("user6.near"), 
+            SIMPLE_LOTTERY.to_string(), 
+            U128(ONE_NEAR * 3), 
+            6u32,
+            false,
+            true,
+            Some(user("referrer.near"))
+        );
+
+        let params = contract.get_contract_params();
+        let contract_fees = ratio(18 * ONE_NEAR, params.config.contract_fee_ratio);
+        // 0% and 40% takes from contract fees to investor and treasury
+        let keeped_fees = ratio(contract_fees, 6000);
+        assert_eq!(
+            params.fees_collected[0], (token("usdt.near"), U128(keeped_fees)),
+            "Mismatched fees collected"
+        );
+        println!(
+            "{:#?}", params
+        );
+        //4950000000000000000000000
+        //0.05 -> 0.03 to treasury, 0.005 to investor, 0.15 keeped
+        //30000000000000000000000 + 5000000000000000000000 + 15000000000000000000000
+    }
 
     #[test]
     fn test_finished_big_lottery() {
@@ -391,7 +575,8 @@ mod tests {
             U128(entry_fee), 
             50u32,
             true,
-            false
+            false,
+            Some(user("referrer.near"))
         );
         for index in 1u8..49u8 {
             let account = user(&("user".to_string().to_owned() + &index.to_string()));
@@ -403,7 +588,8 @@ mod tests {
                 U128(entry_fee), 
                 50u32,
                 false,
-                false
+                false,
+                Some(user("referrer.near"))
             );
         }
         enter_lottery(
@@ -414,19 +600,33 @@ mod tests {
             U128(entry_fee), 
             50u32,
             false,
-            true
+            true,
+            Some(user("referrer.near"))
         );
         let params = contract.get_contract_params();
         let contract_fees = 50 * entry_fee - ( (entry_fee / 2 * 25) + ( ( entry_fee / 10 + entry_fee ) * 15) + ( ( entry_fee / 2 + entry_fee ) * 10) );
         // 0% and 40% takes from contract fees to investor and treasury
         let keeped_fees = ratio(contract_fees, 6000);
         assert_eq!(
-            params.fees_collected.0, keeped_fees,
+            params.fees_collected[0], (near(), U128(keeped_fees)),
             "Mismatched fees collected"
         );
         println!(
             "{:#?}", params
         );
+        enter_lottery(
+            &mut contract, 
+            &mut context, 
+            &user("user0.near"), 
+            BIG_LOTTERY.to_string(), 
+            U128(entry_fee), 
+            50u32,
+            true,
+            false,
+            Some(user("referrer.near"))
+        );
+        //7200000000000000000000000 - 40%
+        //10800000000000000000000000 - 60%
     }
     // TESTS HERE
 }

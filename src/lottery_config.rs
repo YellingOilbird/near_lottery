@@ -7,6 +7,13 @@ pub enum LotteryType {
     BigLottery
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct StoredCashback {
+    pub amount: Balance, 
+    pub accounts: Vec<AccountId>
+}
+
 impl From<String> for LotteryType {
     fn from(s: String) -> Self {
         if s == SIMPLE_LOTTERY.to_string() {
@@ -23,7 +30,7 @@ impl From<String> for LotteryType {
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct LotteryConfig {
-    pub entry_fees: Vec<Balance>,
+    pub entry_fees: Vec<U128>,
     pub num_participants: Vec<u32>,
     pub big_lottery_num_participants: Vec<u32>
 }
@@ -55,11 +62,11 @@ impl LotteryConfig {
         self.big_lottery_num_participants.remove(index);
     }
 
-    pub fn add_entry_fee(&mut self, fee: Balance) {
+    pub fn add_entry_fee(&mut self, fee: U128) {
         self.entry_fees.push(fee)
     }
 
-    pub fn remove_entry_fee(&mut self, fee: Balance) {
+    pub fn remove_entry_fee(&mut self, fee: U128) {
         let index = self.entry_fees.iter().position(|x| x == &fee).expect("invalid fee to remove");
         self.entry_fees.remove(index);
     }

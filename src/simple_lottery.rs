@@ -5,21 +5,23 @@ use crate::*;
 #[serde(crate = "near_sdk::serde")]
 pub struct SimpleLottery {
     pub id: LotteryId,
+    pub lottery_token_id: AccountId,
     pub lottery_status: LotteryStatus,
     /// A list of account_ids in this lottery
-    pub entries: Vec<AccountId>,
+    pub entries: Vec<Entry>,
     /// Amount to participate a lottery
     pub entry_fee: Balance,
     /// Current amount deposited
     pub current_pool: Balance,
     /// Required total amount for lottery to start
     pub required_pool: Balance,
-    pub winner: Option<AccountId>
+    pub winner: Option<Entry>
 }
 
 impl SimpleLottery {
     pub fn new(
         id: LotteryId,
+        lottery_token_id: AccountId,
         num_participants: u32,
         entry_fee: Balance 
     ) -> Self {
@@ -29,6 +31,7 @@ impl SimpleLottery {
         };
         let lottery = Self {
             id,
+            lottery_token_id,
             lottery_status: LotteryStatus::Active,
             entries: vec![],
             entry_fee,
@@ -47,6 +50,12 @@ impl SimpleLottery {
     
     fn get_accounts_num(&self) -> u32 {
         self.entries.len() as _
+    }
+
+    fn contains_entry(&self, account_id: &AccountId) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| &entry.account_id == account_id)
     }
 
     fn assert_equals_pool(&self) {
@@ -87,33 +96,33 @@ impl SimpleLottery {
     }
 
     /// Draw lottery entry
-    pub fn draw_near_enter(&mut self, account_id: &AccountId, amount: Balance) -> (LotteryStatus, Balance) {
+    pub fn draw_enter(&mut self, account_id: &AccountId, amount: Balance, referrer_id: Option<AccountId>) -> LotteryStatus {
         if !self.is_finished() {
             assert_eq!(
                 amount, self.entry_fee,
                 "Supplied: {}, but Required amount to paticipate is: {}",
                 self.entry_fee, amount
             );
-            assert!(!self.entries.contains(account_id), "Already entered");
-            self.entries.push(account_id.clone());
+            assert!(!self.contains_entry(account_id), "Already entered");
+            self.entries.push(
+                Entry { account_id: account_id.clone(), referrer_id }
+            );
             self.current_pool += amount;
-            // check is required pool filled now and always return a lottery status
-            (self.update(), 0)
-        } else {
-            (self.update(), amount)
         }
+
+        // check is required pool filled now and always return a lottery status
+        self.update()
     }
 
     fn set_winner(&mut self) {
-        let random_seed = env::random_seed_array();
         let total_entries = self.get_accounts_num();
-        let random_seed_sum = random_seed.iter().sum::<u8>() as u32;
-        let winner = &self.entries[(random_seed_sum%total_entries) as usize];
+        let index = get_range_random_number(0, total_entries);
+        let winner = &self.entries[index];
        
         self.winner = Some(winner.clone());
     }
 
-    pub fn get_winner_unwrap(&self) -> AccountId {
+    pub fn get_winner_unwrap(&self) -> Entry {
         match &self.winner {
             Some(winner) => winner.clone(),
             None => panic!("Lottery has no winner"),

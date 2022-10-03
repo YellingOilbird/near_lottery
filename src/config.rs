@@ -9,7 +9,8 @@ pub const MAX_RATIO: u32 = 10000;
 /// - Treasury ratio takes amount from contract fees
 /// - Investor ratio takes amount from contract fees
 /// - Example: 
-/// Reward is 100 NEAR, `contract_fee_ratio = 50`, `treasury_ratio` = 6000, `investor_ratio` = 1000:
+/// 
+/// Reward is 100 NEAR, `contract_fee_ratio = 100`, `treasury_ratio` = 6000, `investor_ratio` = 1000:
 /// - `contract_fees = 100 * 0.5%` = 0.5N
 /// - `investor_amount = contract_fees * 10% = 0.5 * 0.1 = 0.05N`
 /// - `treasury_amount = contract_fees * 60% = 0.5 * 0.6 = 0.3N`
@@ -97,9 +98,8 @@ impl Contract {
                     .entry_fees
             },
         };
-
         assert!(
-            required_entry_fees.contains(&amount),
+            required_entry_fees.contains(&amount.into()),
             "Lottery expected one from that entry fees in yoctoNEAR : {:?} ",
             required_entry_fees
         );
@@ -159,6 +159,32 @@ impl Contract {
         self.config.set(&config);
     }
 
+    /// Add FT to the whitelist.
+    /// - Requires one yoctoNEAR.
+    /// - Requires to be called by the contract owner.
+    /// - Requires this token not being already whitelisted.
+    #[payable]
+    pub fn whitelist_token(&mut self, token_id: AccountId) {
+        assert_one_yocto();
+        self.assert_owner();
+
+        assert!(!self.whitelisted_tokens.contains(&token_id), "Already whitelisted");
+        self.whitelisted_tokens.insert(&token_id);
+    }
+
+    /// Removes FT to the whitelist.
+    /// - Requires one yoctoNEAR.
+    /// - Requires to be called by the contract owner.
+    /// - Requires this token being whitelisted.
+    #[payable]
+    pub fn remove_whitelist_token(&mut self, token_id: AccountId) {
+        assert_one_yocto();
+        self.assert_owner();
+
+        assert!(self.whitelisted_tokens.contains(&token_id), "Not fount in whitelisted list");
+        self.whitelisted_tokens.remove(&token_id);
+    }
+
     /// Added the lottery config new num_participants required.
     /// - Requires one yoctoNEAR.
     /// - Requires to be called by the contract owner.
@@ -196,28 +222,17 @@ impl Contract {
 
         let lottery_type = LotteryType::from(lottery_type);
 
-        let has_active_lottery = self
-            .lotteries
-            .values()
-            .any(|lottery| {
-                lottery.num_participants() == num 
-                    && lottery.status() == LotteryStatus::Active
-            });
-
         let mut config = self.internal_config();
 
-        if !has_active_lottery {
-            match lottery_type {
-                LotteryType::SimpleLottery => {
-                    config.lotteries_config.remove_num_participants(num);
-                },
-                LotteryType::BigLottery => {
-                    config.lotteries_config.remove_big_lottery_num_participants(num);
-                },
-            }
-        } else {
-            panic!("Contract has active lottery");
+        match lottery_type {
+            LotteryType::SimpleLottery => {
+                config.lotteries_config.remove_num_participants(num);
+            },
+            LotteryType::BigLottery => {
+                config.lotteries_config.remove_big_lottery_num_participants(num);
+            },
         }
+        
         config.lotteries_config.assert_valid();
         self.config.set(&config);
     }
@@ -230,7 +245,7 @@ impl Contract {
         self.assert_owner();
 
         let mut config = self.internal_config();
-        config.lotteries_config.add_entry_fee(entry_fee.0);
+        config.lotteries_config.add_entry_fee(entry_fee);
         config.lotteries_config.assert_valid();
 
         self.config.set(&config);
@@ -244,7 +259,7 @@ impl Contract {
         self.assert_owner();
 
         let mut config = self.internal_config();
-        config.lotteries_config.remove_entry_fee(entry_fee.0);
+        config.lotteries_config.remove_entry_fee(entry_fee);
         config.lotteries_config.assert_valid();
 
         self.config.set(&config);
