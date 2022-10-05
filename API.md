@@ -19,7 +19,7 @@ near deploy --wasmFile ./res/near_lottery.wasm --accountId example.near #mainnet
 /// - 40% investor fees from contract fees  ( reward * 0.1 ) * 0.4
 /// - 50% treasury fees from contract fees  ( reward * 0.1 ) * 0.5
 /// will be 1000, 4000, 5000 for this setup
-pub struct Config {
+Config {
     /// contract owner
     pub owner_id: AccountId,
     /// fees taken from winner reward to contract in basis points (10%)
@@ -38,7 +38,7 @@ pub struct Config {
 
 ///Lottery config
 /// - Required all lists (arrays) need to be non-empty
-pub struct LotteryConfig {
+LotteryConfig {
     pub entry_fees: Vec<(<AccountId, Vec<U128>)>,
     pub num_participants: Vec<u32>,
     pub big_lottery_num_participants: Vec<u32>
@@ -152,8 +152,7 @@ pub fn draw_near_enter(
 pub fn ft_transfer_call(
     sender_id: AccountId 
     amount: U128,
-    // msg - DrawNearEnter struct
-    msg: String
+    // msg - DrawNearEn    msg: String
 ) -> LotteryId 
 
 DrawEnter {
