@@ -38,6 +38,7 @@ pub struct BigLottery {
     pub cashbacked_num: u32,
     pub ten_percent_winners_num: u32,
     pub fifty_percent_winners_num: u32,
+    pub refferal_transfered: Balance
 }
 
 impl BigLottery {
@@ -68,6 +69,7 @@ impl BigLottery {
             cashbacked_num: num_participants / 2,
             ten_percent_winners_num: num_participants / 2 - num_participants / 5,
             fifty_percent_winners_num: num_participants / 5,
+            refferal_transfered: 0
         };
         lottery.assert_valid();
         lottery
@@ -111,6 +113,10 @@ impl BigLottery {
     pub fn assert_is_finished(&self) {
         self.assert_equals_pool();
         assert!(!self.winners.is_empty());
+    }
+
+    pub fn add_refferal_transfered(&mut self, amount: Balance) {
+        self.refferal_transfered += amount
     }
 
     pub fn update(&mut self) -> LotteryStatus {

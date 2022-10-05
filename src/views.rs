@@ -2,13 +2,6 @@ use crate::*;
 
 #[derive(Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
-pub struct EntryView {
-    pub account_id: AccountId,
-    pub referrer_id: Option<AccountId>,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(crate = "near_sdk::serde")]
 pub struct ContractParams {
     pub fees_collected: Vec<(AccountId, U128)>,
     pub config: ConfigView,
@@ -42,7 +35,7 @@ pub struct LotteryView {
     pub lottery_token_id: AccountId,
     pub lottery_status: LotteryStatus,
     /// A list of lottery_ids in this lottery
-    pub entries: Vec<EntryView>,
+    pub entries: Vec<AccountId>,
     /// Amount to participate a lottery
     pub entry_fee: U128,
     /// Current amount deposited
@@ -88,14 +81,7 @@ impl Contract {
                 LotteryView { 
                     lottery_token_id: lottery.lottery_token_id,
                     lottery_status: lottery.lottery_status, 
-                    entries: lottery
-                        .entries
-                        .iter()
-                        .map(|account_id| EntryView {
-                            account_id: account_id.clone(),
-                            referrer_id: None
-                        })
-                        .collect(), 
+                    entries: lottery.entries, 
                     entry_fee: lottery.entry_fee.into(), 
                     current_pool: lottery.current_pool.into(), 
                     required_pool: lottery.required_pool.into(), 
@@ -110,14 +96,7 @@ impl Contract {
                 LotteryView { 
                     lottery_token_id: lottery.lottery_token_id,
                     lottery_status: lottery.lottery_status, 
-                    entries: lottery
-                        .entries
-                        .iter()
-                        .map(|e| EntryView {
-                            account_id: e.account_id.clone(),
-                            referrer_id: e.referrer_id.clone()
-                        })
-                        .collect(), 
+                    entries: lottery.entries, 
                     entry_fee: lottery.entry_fee.into(), 
                     current_pool: lottery.current_pool.into(), 
                     required_pool: lottery.required_pool.into(), 

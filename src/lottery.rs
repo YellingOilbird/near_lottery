@@ -14,13 +14,13 @@ pub enum Lottery {
     Lottery(BigLottery)
 }  
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
-//#[cfg_attr(not(target_arch = "wasm32"), derive(Clone))]
-#[serde(crate = "near_sdk::serde")]
-pub struct Entry{
-    pub account_id: AccountId,
-    pub referrer_id: Option<AccountId>
-}
+// #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
+// //#[cfg_attr(not(target_arch = "wasm32"), derive(Clone))]
+// #[serde(crate = "near_sdk::serde")]
+// pub struct Entry{
+//     pub account_id: AccountId,
+//     pub referrer_id: Option<AccountId>
+// }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, PartialEq, Copy, Clone, Debug)]
 #[serde(crate = "near_sdk::serde")]
@@ -153,7 +153,7 @@ impl Contract {
             Some(lottery) => lottery,
             None => {
                 self.add_new_lottery(
-                    lottery_token_id,
+                    lottery_token_id.clone(),
                     lottery_type, 
                     num_participants, 
                     entry_fee
@@ -164,7 +164,18 @@ impl Contract {
         let lottery_id = lottery.get_id();
         match lottery {
             Lottery::SimpleLottery(mut simple_lottery) => {
-                let lottery_status = simple_lottery.draw_enter(entry_account_id, entry_fee, referrer_id);
+                let lottery_status = simple_lottery.draw_enter(entry_account_id, entry_fee);
+                
+                if let Some(refferer) = referrer_id {
+                    let referrer_reward = ratio(entry_fee, ONE_PERCENT_RATIO);
+                    if lottery_token_id == near() {
+                        Promise::new(refferer).transfer(referrer_reward);
+                    } else {
+                        self.internal_ft_transfer(&refferer, &lottery_token_id, referrer_reward);
+                    }
+                    simple_lottery.add_refferal_transfered(referrer_reward);
+                }
+
                 match lottery_status {
                     // user was last for that lottery. Need to distribute reward                   
                     LotteryStatus::Finished => {
@@ -182,6 +193,17 @@ impl Contract {
             },
             Lottery::Lottery(mut big_lottery) => {
                 let lottery_status = big_lottery.draw_enter(entry_account_id, entry_fee);
+                
+                if let Some(refferer) = referrer_id {
+                    let referrer_reward = ratio(entry_fee, ONE_PERCENT_RATIO);
+                    if lottery_token_id == near() {
+                        Promise::new(refferer).transfer(referrer_reward);
+                    } else {
+                        self.internal_ft_transfer(&refferer, &lottery_token_id, referrer_reward);
+                    }
+                    big_lottery.add_refferal_transfered(referrer_reward);
+                }
+
                 match lottery_status {
                     // user was last for that lottery. Need to distribute reward                   
                     LotteryStatus::Finished => {
@@ -212,19 +234,21 @@ impl Contract {
                 lottery.assert_is_finished();
                 let lottery_token_id = lottery.lottery_token_id.clone();
 
-                let winner_entry = lottery.get_winner_unwrap();
-                let winner_id = winner_entry.account_id.clone();
+                let winner_id = lottery.get_winner_unwrap();
 
                 let reward = lottery.current_pool;
                 let mut contract_fees = ratio(reward, self.get_contract_fee_ratio());
-                let treasury_fees = self.get_treasury_taken_amount(contract_fees);
-                let investor_fees = self.get_investor_taken_amount(contract_fees);
-        
+                assert!(reward > contract_fees, "Reward cannot be less than contract fees");
                 // take contract fees from reward
                 let reward_fees_taken = reward - contract_fees;
-                assert!(reward_fees_taken > contract_fees, "Reward cannot be less than contract fees");
+                if lottery.refferal_transfered > 0 {
+                    assert!(contract_fees > lottery.refferal_transfered, "Refferal's reward cannot be greater than contract fees");
+                    contract_fees -= lottery.refferal_transfered;
+                }
+                let treasury_fees = self.get_treasury_taken_amount(contract_fees);
+                let investor_fees = self.get_investor_taken_amount(contract_fees);
                 assert!(
-                    contract_fees > treasury_fees + investor_fees, 
+                    contract_fees >= treasury_fees + investor_fees, 
                     "Contract fees cannot be less than treasury & investor fees"
                 );
                 contract_fees -= treasury_fees + investor_fees;
@@ -232,19 +256,8 @@ impl Contract {
                 // transfer all fees & reward
                 if lottery_token_id == near() {
                     //todo - add callback here
-                    if let Some(refferer_id) = winner_entry.referrer_id {
-                        let referrer_reward = ratio(reward_fees_taken, ONE_PERCENT_RATIO);
-                        let winner_reward = reward_fees_taken - referrer_reward;
-                        //winner
-                        Promise::new(winner_id.clone()).transfer(winner_reward);
-                        log!("Winner is @{} reward is {} yoctoNEAR", winner_id, winner_reward);
-                        //referrer
-                        Promise::new(refferer_id.clone()).transfer(referrer_reward);
-                        log!("Winner is @{} reward is {} yoctoNEAR", refferer_id, referrer_reward);
-                    } else {
-                        Promise::new(winner_id.clone()).transfer(reward_fees_taken);
-                        log!("Winner is @{} reward is {} yoctoNEAR", winner_id, reward_fees_taken);    
-                    }
+                    Promise::new(winner_id.clone()).transfer(reward_fees_taken);
+                    log!("Winner is @{} reward is {} yoctoNEAR", winner_id, reward_fees_taken); 
 
                     if treasury_fees > 0 {
                         Promise::new(self.treasury()).transfer(treasury_fees);
@@ -257,20 +270,9 @@ impl Contract {
                     } 
                 } else {
                     //todo - add callback here
-                    if let Some(refferer_id) = winner_entry.referrer_id {
-                        let referrer_reward = ratio(reward_fees_taken, ONE_PERCENT_RATIO);
-                        let winner_reward = reward_fees_taken - referrer_reward;
-                        //winner
-                        self.internal_ft_transfer(&winner_id, &lottery_token_id, winner_reward);
-                        log!("Winner is @{} reward is {} token {} ", winner_id, winner_reward, &lottery_token_id);
-                        //referrer
-                        self.internal_ft_transfer(&winner_id, &lottery_token_id, referrer_reward);
-                        log!("Refferer is @{} reward is {} token {} ", refferer_id, referrer_reward, &lottery_token_id);
-                    } else {
-                        //winner
-                        self.internal_ft_transfer(&winner_id, &lottery_token_id, reward_fees_taken);
-                        log!("Winner is @{} reward is {} token {} ", winner_id, reward_fees_taken, &lottery_token_id);    
-                    }
+                    self.internal_ft_transfer(&winner_id, &lottery_token_id, reward_fees_taken);
+                    log!("Winner is @{} reward is {} token {} ", winner_id, reward_fees_taken, &lottery_token_id); 
+
                     if treasury_fees > 0 {
                         self.internal_ft_transfer(&winner_id, &lottery_token_id, treasury_fees);
                         log!("Treasury transfered {} yoctoNEAR", treasury_fees);
@@ -282,7 +284,9 @@ impl Contract {
                     } 
                 }  
 
-                self.deposit_fees(&lottery_token_id, contract_fees);
+                if contract_fees > 0 {
+                    self.deposit_fees(&lottery_token_id, contract_fees);
+                }
                 true
             },
             Lottery::Lottery(lottery) => {
@@ -305,6 +309,11 @@ impl Contract {
                 assert!(lottery.current_pool > exact_reward, "Current pool amount must be greater than exact transfered reward");
 
                 let mut contract_fees = lottery.current_pool - exact_reward;
+
+                if lottery.refferal_transfered > 0 {
+                    assert!(contract_fees > lottery.refferal_transfered, "Refferal's reward cannot be greater than contract fees");
+                    contract_fees -= lottery.refferal_transfered;
+                }
                 
                 let treasury_fees = self.get_treasury_taken_amount(contract_fees);
                 let investor_fees = self.get_investor_taken_amount(contract_fees);

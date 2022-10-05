@@ -8,14 +8,15 @@ pub struct SimpleLottery {
     pub lottery_token_id: AccountId,
     pub lottery_status: LotteryStatus,
     /// A list of account_ids in this lottery
-    pub entries: Vec<Entry>,
+    pub entries: Vec<AccountId>,
     /// Amount to participate a lottery
     pub entry_fee: Balance,
     /// Current amount deposited
     pub current_pool: Balance,
     /// Required total amount for lottery to start
     pub required_pool: Balance,
-    pub winner: Option<Entry>
+    pub winner: Option<AccountId>,
+    pub refferal_transfered: Balance
 }
 
 impl SimpleLottery {
@@ -37,7 +38,8 @@ impl SimpleLottery {
             entry_fee,
             current_pool: 0,
             required_pool,
-            winner: None
+            winner: None,
+            refferal_transfered: 0
         };
         lottery.assert_valid();
         lottery
@@ -53,9 +55,7 @@ impl SimpleLottery {
     }
 
     fn contains_entry(&self, account_id: &AccountId) -> bool {
-        self.entries
-            .iter()
-            .any(|entry| &entry.account_id == account_id)
+        self.entries.contains(account_id)
     }
 
     fn assert_equals_pool(&self) {
@@ -95,8 +95,12 @@ impl SimpleLottery {
         self.lottery_status
     }
 
+    pub fn add_refferal_transfered(&mut self, amount: Balance) {
+        self.refferal_transfered += amount
+    }
+
     /// Draw lottery entry
-    pub fn draw_enter(&mut self, account_id: &AccountId, amount: Balance, referrer_id: Option<AccountId>) -> LotteryStatus {
+    pub fn draw_enter(&mut self, account_id: &AccountId, amount: Balance) -> LotteryStatus {
         if !self.is_finished() {
             assert_eq!(
                 amount, self.entry_fee,
@@ -104,9 +108,7 @@ impl SimpleLottery {
                 self.entry_fee, amount
             );
             assert!(!self.contains_entry(account_id), "Already entered");
-            self.entries.push(
-                Entry { account_id: account_id.clone(), referrer_id }
-            );
+            self.entries.push(account_id.clone());
             self.current_pool += amount;
         }
 
@@ -122,7 +124,7 @@ impl SimpleLottery {
         self.winner = Some(winner.clone());
     }
 
-    pub fn get_winner_unwrap(&self) -> Entry {
+    pub fn get_winner_unwrap(&self) -> AccountId {
         match &self.winner {
             Some(winner) => winner.clone(),
             None => panic!("Lottery has no winner"),
