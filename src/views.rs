@@ -55,17 +55,17 @@ pub struct LotteryView {
 impl Contract {
     pub fn get_contract_view(&self) -> ContractParams {
         let config_internal = self.internal_config();
+        let lottery_config_internal = self.internal_lottery_config();
         let config = ConfigView {
             owner_id: config_internal.owner_id,
             contract_fee_ratio: config_internal.contract_fee_ratio,
-            entry_fees_required: config_internal
-                .lotteries_config
+            entry_fees_required: lottery_config_internal
                 .entry_fees
                 .into_iter()
                 .collect(),
             num_participants_required: vec![
-                (LotteryType::SimpleLottery, config_internal.lotteries_config.num_participants),
-                (LotteryType::BigLottery, config_internal.lotteries_config.big_lottery_num_participants),
+                (LotteryType::SimpleLottery, lottery_config_internal.num_participants),
+                (LotteryType::BigLottery, lottery_config_internal.big_lottery_num_participants),
             ],
         };
 
