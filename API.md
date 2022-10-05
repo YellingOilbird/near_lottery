@@ -122,7 +122,7 @@ pub fn add_entry_fee(&mut self, token_id: Option<AccountId>, entry_fee: U128)
 
 #### main API (enter a lottery)
 
-- SIMPLE_LOTTERY (with NEAR)
+- with NEAR
 ```rust
 /// - Called from potential player account
 /// - Required attached deposit equals to one from near entry fees ( E.g 1 or 2 or 5 NEAR)
@@ -138,7 +138,7 @@ pub fn draw_near_enter(
     referrer_id: Option<AccountId>
 ) -> LotteryId 
 ```
-- BIG_LOTTERY (with any Fungible Token (FT))
+- with any Fungible Token (FT)
 ```rust
 /// - Called from fungible token account
 /// - Panics if called from not whitelisted token account
