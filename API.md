@@ -152,7 +152,8 @@ pub fn draw_near_enter(
 pub fn ft_transfer_call(
     sender_id: AccountId 
     amount: U128,
-    // msg - DrawNearEn    msg: String
+    // msg - DrawNearEnter    
+    msg: String
 ) -> LotteryId 
 
 DrawEnter {
