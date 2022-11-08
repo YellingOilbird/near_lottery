@@ -171,3 +171,61 @@ DrawEnter {
 /// }"
 /// ```
 ```
+
+### View
+
+#### Structs
+
+```rust
+
+struct ContractParams {
+    pub fees_collected: Vec<(AccountId, U128)>,
+    pub config: ConfigView,
+    pub cashback_accounts_num: Vec<(AccountId, u32)>,
+    pub whitelisted_tokens: Vec<AccountId>
+}
+
+struct BigLotteryParams {
+    pub cashbacked_num: u32,
+    pub ten_percent_winners_num: u32,
+    pub fifty_percent_winners_num: u32,
+}
+
+struct ConfigView {
+    /// contract owner
+    pub owner_id: AccountId,
+    /// fees taken from prize pool to contract
+    pub contract_fee_ratio: u32,
+    /// lotteries config
+    pub entry_fees_required: Vec<(AccountId, Vec<U128>)>,
+    pub num_participants_required: Vec<(LotteryType, Vec<u32>)>
+}
+
+struct LotteryView {
+    pub lottery_token_id: AccountId,
+    pub lottery_status: LotteryStatus,
+    /// A list of lottery_ids in this lottery
+    pub entries: Vec<AccountId>,
+    /// Amount to participate a lottery
+    pub entry_fee: U128,
+    /// Current amount deposited
+    pub current_pool: U128,
+    /// Required total amount for lottery to start
+    pub required_pool: U128,
+    pub big_lottery_params: Option<BigLotteryParams>
+}
+
+```
+
+#### Methods
+
+```rust
+/// total lotteries of all time
+fn get_lotteries_num(&self) -> u64
+/// returns contract state view
+fn get_contract_params(&self) -> ContractParams
+/// Returns detailed information about an lottery for a given lottery_id.
+fn get_lottery(&self, lottery_id: LotteryId) -> Option<LotteryView>
+/// Returns limited lottery information for lotteriess from a given index up to a given limit.
+fn get_lotteries_paged(&self, from_index: Option<u64>, limit: Option<u64>) -> Vec<Lottery>
+```
