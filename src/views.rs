@@ -28,7 +28,8 @@ pub struct ConfigView {
     pub contract_fee_ratio: u32,
     /// lotteries config
     pub entry_fees_required: Vec<(AccountId, Vec<U128>)>,
-    pub num_participants_required: Vec<(LotteryType, Vec<u32>)>
+    pub num_participants_required: Vec<(LotteryType, Vec<u32>)>,
+    pub accepted_subs: String
 }
 
 #[derive(Serialize, Debug)]
@@ -92,6 +93,7 @@ impl Contract {
                 (LotteryType::SimpleLottery, lottery_config_internal.num_participants),
                 (LotteryType::BigLottery, lottery_config_internal.big_lottery_num_participants),
             ],
+            accepted_subs: config_internal.accepted_subs
         };
 
         ContractParams { 
