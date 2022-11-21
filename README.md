@@ -22,12 +22,16 @@ export FIVE_NEAR=5000000000000000000000000
 export TEN_NEAR=10000000000000000000000000
 export ONE_USN=1000000000000000000
 
-export USER_1=participant_1.testnet
-export USER_2=participant_2.testnet
-export USER_3=participant_3.testnet
-export USER_4=participant_4.testnet
-export USER_5=participant_5.testnet
+export USER_1=participant_1.sub.testnet
+export USER_2=participant_2.sub.testnet
+export USER_3=participant_3.sub.testnet
+export USER_4=participant_4.sub.testnet
+export USER_5=participant_5.sub.testnet
 export GAS=300000000000000
+
+export ACCEPTED_SUBS=sub.testnet
+export INVESTOR=guacharo.testnet
+export TREASURY=oilbird.testnet
 ```
 #### method calls
 
@@ -38,22 +42,26 @@ near call $CONTRACT new '{
         "contract_fee_ratio": 1000,
         "treasury_ratio": 0,
         "investor_ratio": 4000,
-        "treasury": "oilbird.testnet",
-        "investor": "guacharo.testnet",
-        "lotteries_config" : {
-            "entry_fees": [
-                "'$ONE_NEAR'", 
-                "'$THREE_NEAR'", 
-                "'$FIVE_NEAR'"
-            ],
-            "num_participants": [
-                5,6,7,8,9,10
-            ],
-            "big_lottery_num_participants":[
-                50
-            ]
-        }
-    }
+        "treasury": "'$TREASURY'",
+        "investor": "'$INVESTOR'",
+        "accepted_subs": "'$ACCEPTED_SUBS'"
+    },
+    "entry_fees": [
+        ("near", [
+            "'$ONE_NEAR'", 
+            "'$THREE_NEAR'", 
+            "'$FIVE_NEAR'"
+        ]),
+        ("usdn.testnet", [
+            "'$ONE_USN'"
+        ]),
+    ],
+    "num_participants": [
+        5,6,7,8,9,10
+    ],
+    "big_lottery_num_participants":[
+        50
+    ]
 }' --accountId $CONTRACT
 ```
 - enter to lottery
@@ -65,7 +73,7 @@ pub fn draw_near_enter(
     lottery_type: String,
     num_participants: u32,
     entry_fee: U128
-) -> LotteryId {
+) -> LotteryId 
 ```
 ```sh
 near call $CONTRACT draw_near_enter '{
@@ -153,9 +161,15 @@ pub fn remove_entry_fee(&mut self, entry_fee: U128)
 pub fn whitelist_token(&mut self, token_id: AccountId)
 #[payable]
 pub fn remove_whitelist_token(&mut self, token_id: AccountId)
-
+#[payable]
+pub fn change_accepted_subs(&mut self, accepted_subs: String) -> bool
 ```
+
 ```sh
+near call $CONTRACT change_accepted_subs '{
+    "accepted_subs": "sub.testnet"
+}' --accountId $OWNER --depositYocto=1 --gas=$GAS
+
 near call $CONTRACT whitelist_token '{
     "token_id": "usdn.testnet"
 }' --accountId $OWNER --depositYocto=1 --gas=$GAS

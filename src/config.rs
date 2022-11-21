@@ -1,3 +1,5 @@
+use near_sdk::require;
+
 use crate::*;
 
 pub const MAX_RATIO: u32 = 10000;
@@ -110,10 +112,17 @@ impl Contract {
         assert_one_yocto();
         self.assert_owner();
 
+        let accepted_subs_near_env = accepted_subs.split('.').collect::<Vec<_>>();
+        require!(accepted_subs_near_env.len() == 2, "Expected format is sub.near");
+        require!(accepted_subs_near_env[1] == NEAR, format!("Error: Invalid subaccount name: {}, expects sub.{NEAR}", &accepted_subs));
+
+        #[cfg(feature = "testnet")]
+        require!(accepted_subs_near_env[1] == "testnet", format!("Error: Invalid subaccount name: {}, expects sub.testnet", &accepted_subs));
+
         let mut config = self.internal_config();
         config.accepted_subs = accepted_subs;
         self.config.set(&config);
-        
+
         true
     }
     /// Add FT to the whitelist.

@@ -22,3 +22,13 @@ debug = false
 panic = "abort"
 # Opt into extra safety checks on arithmetic operations https://stackoverflow.com/a/64136471/249801
 overflow-checks = true
+
+[features]
+default = ["testnet"]
+# Enables testnet configuration if expicitly stated.
+# It makes the MotoDEX contract use a test hack for changeable token health.
+testnet = []
+
+# Enables mainnet configuration if expicitly stated.
+# It makes the MotoDEX not to use hack.
+mainnet = []
