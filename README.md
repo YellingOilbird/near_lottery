@@ -13,8 +13,8 @@ near dev-deploy --wasmFile ./res/near_lottery.wasm
 ```
 #### env
 ```sh
-//export CONTRACT=dev-1664736275925-68636536627316
-export CONTRACT=dev-1664804352890-64691869124566
+#export CONTRACT=dev-1664736275925-68636536627316
+export CONTRACT=dev-1669054085820-32539078279630
 export OWNER=rmlsnk.testnet
 export ONE_NEAR=1000000000000000000000000
 export THREE_NEAR=3000000000000000000000000
@@ -47,14 +47,14 @@ near call $CONTRACT new '{
         "accepted_subs": "'$ACCEPTED_SUBS'"
     },
     "entry_fees": [
-        ("near", [
+        ["near", [
             "'$ONE_NEAR'", 
             "'$THREE_NEAR'", 
             "'$FIVE_NEAR'"
-        ]),
-        ("usdn.testnet", [
+        ]],
+        ["usdn.testnet", [
             "'$ONE_USN'"
-        ])
+        ]]
     ],
     "num_participants": [
         5,6,7,8,9,10
@@ -167,7 +167,7 @@ pub fn change_accepted_subs(&mut self, accepted_subs: String) -> bool
 
 ```sh
 near call $CONTRACT change_accepted_subs '{
-    "accepted_subs": "sub.testnet"
+    "accepted_subs": "sub1.testnet"
 }' --accountId $OWNER --depositYocto=1 --gas=$GAS
 
 near call $CONTRACT whitelist_token '{

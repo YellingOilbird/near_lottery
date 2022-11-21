@@ -87,4 +87,3 @@ for ((i=0;i<=END;i++)); do
         "lottery_id": EXPECTED_LOTTERY_ID
     }'
 done
-

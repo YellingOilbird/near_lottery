@@ -34,6 +34,8 @@ Config {
     pub investor: AccountId,
     /// lotteries config
     pub lotteries_config: LotteryConfig
+    /// accepted subs
+    pub accepted_subs: String
 }
 
 ///Lottery config
@@ -57,6 +59,10 @@ pub fn new(
 #### changeing a list of whitelisted tokens
 
 ```rust
+/// Change accepted subs
+/// Returns `true` when it set succesful
+#[payable]
+pub fn change_accepted_subs(&mut self, accepted_subs: String) -> bool
 /// Add FT to the whitelist.
 /// - Requires one yoctoNEAR.
 /// - Requires to be called by the contract owner.
