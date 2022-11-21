@@ -54,7 +54,7 @@ near call $CONTRACT new '{
         ]),
         ("usdn.testnet", [
             "'$ONE_USN'"
-        ]),
+        ])
     ],
     "num_participants": [
         5,6,7,8,9,10

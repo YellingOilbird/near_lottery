@@ -1,6 +1,6 @@
 [package]
 name = "near-lottery"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Guacharo <guacharo.w3@yahoo.com>"]
 edition = "2018"
 
