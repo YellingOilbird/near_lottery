@@ -114,6 +114,8 @@ impl Contract {
 
         let accepted_subs_near_env = accepted_subs.split('.').collect::<Vec<_>>();
         require!(accepted_subs_near_env.len() == 2, "Expected format is sub.near");
+        
+        #[cfg(feature = "mainnet")]
         require!(accepted_subs_near_env[1] == NEAR, format!("Error: Invalid subaccount name: {}, expects sub.{NEAR}", &accepted_subs));
 
         #[cfg(feature = "testnet")]
