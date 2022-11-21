@@ -1,6 +1,6 @@
-use std::f32::consts::E;
+use near_sdk::{require, json_types::U64};
 
-use crate::*;
+use crate::{*, views::{LotteryResult, SimpleLotteryResult, BigLotteryResult}};
 
 pub const ONE_PERCENT_RATIO:u32 = MAX_RATIO / 100;
 
@@ -85,6 +85,22 @@ impl Lottery {
 }
 
 impl Contract {
+    pub (crate) fn check_accepted_subs(&self, account_id: &AccountId) {
+        let accepted_subs = self.accepted_subs();
+        let accepted_sub = accepted_subs
+            .split('.')
+            .collect::<Vec<_>>();
+        let stringified_account = account_id
+            .to_string();
+        let splitted_acc = stringified_account
+            .split('.')
+            .collect::<Vec<_>>();
+        require!(splitted_acc.len() == 3, "Expected len for subaccounts");
+        require!(
+            accepted_sub[0] == splitted_acc[1] && accepted_sub[1] == splitted_acc[2], 
+            format!("Incorrect subaccount. Accepted subs is {}", accepted_subs)
+        );
+    }
     pub (crate) fn internal_get_lottery_by_parameters(
         &self,
         token_id: &AccountId,
@@ -119,12 +135,12 @@ impl Contract {
         for (token_id, stored_cashback) in cashback_accounts.iter() {
             if token_id == &near() {
                 for account in &stored_cashback.accounts {
-                    log!("Cashback transfered ( {} yoctoNEAR ) to @{}", stored_cashback.amount, account);
+                    //log!("Cashback transfered ( {} yoctoNEAR ) to @{}", stored_cashback.amount, account);
                     Promise::new(account.clone()).transfer(stored_cashback.amount);
                 }
             } else {
                 for account in &stored_cashback.accounts {
-                    log!("Cashback transfered ( {} yocto {} ) to @{}", token_id, stored_cashback.amount, account);
+                    //log!("Cashback transfered ( {} yocto {} ) to @{}", token_id, stored_cashback.amount, account);
                     self.internal_ft_transfer(account, token_id, stored_cashback.amount);
                 }
             }
@@ -147,7 +163,6 @@ impl Contract {
         entry_fee: Balance,
         referrer_id: Option<AccountId>
     ) -> LotteryId {
-        let lottery_type = LotteryType::from(lottery_type);
 
         let lottery = match self.internal_get_lottery_by_parameters(&lottery_token_id, num_participants, entry_fee) {
             Some(lottery) => lottery,
@@ -179,10 +194,9 @@ impl Contract {
                 match lottery_status {
                     // user was last for that lottery. Need to distribute reward                   
                     LotteryStatus::Finished => {
-                        let success_distribute = self.distribute(Lottery::SimpleLottery(simple_lottery));
-                        if success_distribute {
-                            self.lotteries.remove(&lottery_id);
-                        }
+                        let lottery_result = self.distribute(Lottery::SimpleLottery(simple_lottery));
+                        log!("{:#?}", lottery_result);
+                        self.lotteries.remove(&lottery_id);
                     },
                     // user just created entry for that lottery
                     LotteryStatus::Active => {
@@ -207,10 +221,9 @@ impl Contract {
                 match lottery_status {
                     // user was last for that lottery. Need to distribute reward                   
                     LotteryStatus::Finished => {
-                        let success_distribute = self.distribute(Lottery::Lottery(big_lottery));
-                        if success_distribute {
-                            self.lotteries.remove(&lottery_id);
-                        }
+                        let lottery_result = self.distribute(Lottery::Lottery(big_lottery));
+                        log!("{:#?}", lottery_result);
+                        self.lotteries.remove(&lottery_id);
                     },
                     // user just created entry for that lottery
                     LotteryStatus::Active => {
@@ -228,7 +241,7 @@ impl Contract {
         self.fees.insert(token_id, &fee_amount);
     }
 
-    pub fn distribute(&mut self, lottery: Lottery) -> bool {
+    pub fn distribute(&mut self, lottery: Lottery) -> LotteryResult {
         match lottery {
             Lottery::SimpleLottery(lottery) => {
                 lottery.assert_is_finished();
@@ -257,41 +270,45 @@ impl Contract {
                 if lottery_token_id == near() {
                     //todo - add callback here
                     Promise::new(winner_id.clone()).transfer(reward_fees_taken);
-                    log!("Winner is @{} reward is {} yoctoNEAR", winner_id, reward_fees_taken); 
 
                     if treasury_fees > 0 {
                         Promise::new(self.treasury()).transfer(treasury_fees);
-                        log!("Treasury transfered {} yoctoNEAR", treasury_fees);
                     }
     
                     if investor_fees > 0 {
                         Promise::new(self.investor()).transfer(investor_fees);
-                        log!("Investor transfered {} yoctoNEAR", investor_fees);
                     } 
                 } else {
                     //todo - add callback here
                     self.internal_ft_transfer(&winner_id, &lottery_token_id, reward_fees_taken);
-                    log!("Winner is @{} reward is {} token {} ", winner_id, reward_fees_taken, &lottery_token_id); 
 
                     if treasury_fees > 0 {
                         self.internal_ft_transfer(&winner_id, &lottery_token_id, treasury_fees);
-                        log!("Treasury transfered {} yoctoNEAR", treasury_fees);
                     }
     
                     if investor_fees > 0 {
                         self.internal_ft_transfer(&winner_id, &lottery_token_id, investor_fees);
-                        log!("Investor transfered {} yoctoNEAR", investor_fees);
                     } 
                 }  
 
                 if contract_fees > 0 {
                     self.deposit_fees(&lottery_token_id, contract_fees);
                 }
-                true
+                
+                LotteryResult::SimpleLotteryResult( 
+                    SimpleLotteryResult {
+                        lottery_id: U64(lottery.id),
+                        lottery_token_id,
+                        participants: lottery.entries,
+                        winner: winner_id,
+                        winning_amount: U128(reward_fees_taken),
+                        contract_fee: U128(contract_fees),
+                    }
+                )
             },
             Lottery::Lottery(lottery) => {
                 lottery.assert_is_finished();
-                let lottery_token_id = &lottery.lottery_token_id;
+                let lottery_token_id = lottery.lottery_token_id.clone();
 
                 let reward_fifty_percents_up = lottery.entry_fee + lottery.entry_fee / 2;
                 let reward_ten_percents_up = lottery.entry_fee + lottery.entry_fee / 10;
@@ -301,10 +318,6 @@ impl Contract {
                     reward_fifty_percents_up * lottery.fifty_percent_winners_num as u128
                         + reward_ten_percents_up * lottery.ten_percent_winners_num as u128
                             + cashback * lottery.cashbacked_num as u128;
-                println!(
-                    "lottery.current_pool: {}, exact_reward: {} ",
-                    lottery.current_pool, exact_reward
-                );
 
                 assert!(lottery.current_pool > exact_reward, "Current pool amount must be greater than exact transfered reward");
 
@@ -326,11 +339,10 @@ impl Contract {
 
                 contract_fees -= treasury_fees + investor_fees;
 
-                //todo - next block?
                 let cashbacked_accounts = lottery.get_winners(WinnerType::Cashback);
-                log!("cashbacked_accounts len: {}", cashbacked_accounts.len());
+                log!("total cashbacked accounts: {}", cashbacked_accounts.len());
                 self.cashback_accounts.insert(
-                    lottery_token_id, 
+                    &lottery_token_id, 
                     &StoredCashback { 
                         amount: cashback, 
                         accounts: cashbacked_accounts.to_vec() 
@@ -339,7 +351,7 @@ impl Contract {
                 let up_to_fifty_winners = lottery.get_winners(WinnerType::UpToFiftyPercent);
                 let up_to_ten_winners = lottery.get_winners(WinnerType::UpToTenPercent);
 
-                if lottery_token_id == &near() {
+                if lottery_token_id == near() {
                     //transfers NEAR
                     for account in up_to_fifty_winners {
                         Promise::new(account.clone()).transfer(reward_fifty_percents_up);
@@ -353,38 +365,45 @@ impl Contract {
 
                     if treasury_fees > 0 {
                         Promise::new(self.treasury()).transfer(treasury_fees);
-                        log!("Treasury transfered {} yoctoNEAR", treasury_fees);
                     }
     
                     if investor_fees > 0 {
                         Promise::new(self.investor()).transfer(investor_fees);
-                        log!("Investor transfered {} yoctoNEAR", investor_fees);
                     }
                 } else {
                     //transfers FT
                     for account in up_to_fifty_winners {
                         self.internal_ft_transfer(account, &lottery_token_id, reward_fifty_percents_up);
-                        log!("Reward up to 50% transfered ( {} yoctoNEAR ) to @{} ", reward_fifty_percents_up, account);
+                        log!("Reward up to 50% transfered ( {} yocto{}) to @{} ", reward_fifty_percents_up, match_token_id(&lottery_token_id), account);
                     }
 
                     for account in up_to_ten_winners {
                         self.internal_ft_transfer(account, &lottery_token_id, reward_ten_percents_up);
-                        log!("Reward up to 10% transfered ( {} yoctoNEAR ) to @{} ", reward_ten_percents_up, account);
+                        log!("Reward up to 10% transfered ( {} yocto{}) to @{} ", reward_ten_percents_up, match_token_id(&lottery_token_id), account);
                     }
 
                     if treasury_fees > 0 {
                         self.internal_ft_transfer(&self.treasury(), &lottery_token_id, treasury_fees);
-                        log!("Treasury transfered {} yoctoNEAR", treasury_fees);
                     }
     
                     if investor_fees > 0 {
                         self.internal_ft_transfer(&self.investor(), &lottery_token_id, investor_fees);
-                        log!("Investor transfered {} yoctoNEAR", investor_fees);
                     }
                 }  
                 
-                self.deposit_fees(lottery_token_id, contract_fees);
-                true
+                self.deposit_fees(&lottery_token_id, contract_fees);
+
+                LotteryResult::BigLotteryResult( 
+                    BigLotteryResult {
+                        lottery_id: U64(lottery.id),
+                        lottery_token_id,
+                        participants: lottery.entries.clone(),
+                        winners_up_to_50: up_to_fifty_winners.to_vec(),
+                        winners_up_to_10: up_to_ten_winners.to_vec(),
+                        total_winning_amount: U128(lottery.current_pool),
+                        contract_fee: U128(contract_fees),
+                    }
+                )
             },
         }
     }
@@ -438,6 +457,8 @@ impl Contract {
     ) -> LotteryId {
         let account_id = env::predecessor_account_id();
         let attached_deposit = env::attached_deposit();
+
+        self.check_accepted_subs(&account_id);
         
         self.draw_enter(
             &account_id, 

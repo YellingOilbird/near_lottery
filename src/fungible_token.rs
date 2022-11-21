@@ -36,6 +36,8 @@ impl FungibleTokenReceiver for Contract {
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
+        self.check_accepted_subs(&sender_id);
+
         let token_id = env::predecessor_account_id();
         assert!(self.whitelisted_tokens.contains(&token_id), "Token is not whitelisted");
 
@@ -113,9 +115,9 @@ impl ExtSelf for Contract {
     #[private]
     fn after_ft_transfer(
         &mut self,
-        account_id: AccountId,
-        token_id: AccountId,
-        amount: Balance,
+        _account_id: AccountId,
+        _token_id: AccountId,
+        _amount: Balance,
     ) -> bool {
         let promise_success = is_promise_success();
         if !promise_success {

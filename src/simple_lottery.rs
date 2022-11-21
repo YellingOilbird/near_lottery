@@ -67,19 +67,11 @@ impl SimpleLottery {
     }
 
     fn is_pools_equal(&self) -> bool {
-        if self.current_pool == self.required_pool {
-            true
-        } else {
-            false
-        }
+        self.current_pool == self.required_pool
     }
 
     fn is_finished(&self) -> bool {
-        if self.lottery_status == LotteryStatus::Finished && self.is_pools_equal() && self.winner.is_some() {
-            true
-        } else {
-            false
-        }
+        self.lottery_status == LotteryStatus::Finished && self.is_pools_equal() && self.winner.is_some()
     }
 
     pub fn assert_is_finished(&self) {

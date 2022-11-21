@@ -31,7 +31,9 @@ pub struct Config {
     /// treasury account
     pub treasury: AccountId,
     /// investor account
-    pub investor: AccountId
+    pub investor: AccountId,
+    /// accepted subaccounts
+    pub accepted_subs: String
 }
 
 impl Config {
@@ -39,8 +41,8 @@ impl Config {
         assert!(self.contract_fee_ratio <= MAX_RATIO, "fees cannot be more than 100% in Basis Points");
         assert!(self.treasury_ratio <= MAX_RATIO, "treasury ratio cannot be more than 100% from contract fees");
         assert!(
-            self.investor_ratio + self.treasury_ratio < MAX_RATIO,
-            "Incorrect ratio setup, contract_fee_ratio must be less than ( investor_ratio + treasury_ratio ) "
+            self.investor_ratio + self.treasury_ratio < MAX_RATIO * 9 / 10,
+            "Incorrect ratio setup, 90 % of contract_fee_ratio must be less than ( investor_ratio + treasury_ratio ) "
         );
     }
 }
@@ -56,6 +58,10 @@ impl Contract {
 
     pub (crate) fn internal_config(&self) -> Config {
         self.config.get().unwrap()
+    }
+
+    pub (crate) fn accepted_subs(&self) -> String {
+        self.internal_config().accepted_subs
     }
 
     pub (crate) fn treasury(&self) -> AccountId {
@@ -98,6 +104,18 @@ fn compute_internal_fee_ratio(contract_fees: Balance, ratio_from_contract_fees: 
 
 #[near_bindgen]
 impl Contract {
+    /// Change accepted subs
+    #[payable]
+    pub fn change_accepted_subs(&mut self, accepted_subs: String) -> bool {
+        assert_one_yocto();
+        self.assert_owner();
+
+        let mut config = self.internal_config();
+        config.accepted_subs = accepted_subs;
+        self.config.set(&config);
+        
+        true
+    }
     /// Add FT to the whitelist.
     /// - Requires one yoctoNEAR.
     /// - Requires to be called by the contract owner.

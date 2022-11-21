@@ -1,3 +1,5 @@
+use near_sdk::json_types::U64;
+
 use crate::*;
 
 #[derive(Serialize, Debug)]
@@ -43,6 +45,36 @@ pub struct LotteryView {
     /// Required total amount for lottery to start
     pub required_pool: U128,
     pub big_lottery_params: Option<BigLotteryParams>
+}
+
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub enum LotteryResult {
+    SimpleLotteryResult(SimpleLotteryResult),
+    BigLotteryResult(BigLotteryResult)
+}
+
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct SimpleLotteryResult {
+    pub lottery_id: U64,
+    pub lottery_token_id: AccountId,
+    pub participants: Vec<AccountId>,
+    pub winner: AccountId,
+    pub winning_amount: U128,
+    pub contract_fee: U128
+}
+
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct BigLotteryResult {
+    pub lottery_id: U64,
+    pub lottery_token_id: AccountId,
+    pub participants: Vec<AccountId>,
+    pub winners_up_to_50: Vec<AccountId>,
+    pub winners_up_to_10: Vec<AccountId>,
+    pub total_winning_amount: U128,
+    pub contract_fee: U128
 }
 
 impl Contract {
@@ -129,7 +161,7 @@ impl Contract {
         let from_index = from_index.unwrap_or(0);
         let limit = limit.unwrap_or(values.len());
         (from_index..std::cmp::min(values.len(), from_index + limit))
-            .map(|index| values.get(index).unwrap().into())
+            .map(|index| values.get(index).unwrap())
             .collect()
     }
 }

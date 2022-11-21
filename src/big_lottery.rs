@@ -89,19 +89,11 @@ impl BigLottery {
     }
 
     fn is_pools_equal(&self) -> bool {
-        if self.current_pool == self.required_pool {
-            true
-        } else {
-            false
-        }
+        self.current_pool == self.required_pool
     }
 
     fn is_finished(&self) -> bool {
-        if self.lottery_status == LotteryStatus::Finished && self.is_pools_equal() && !self.winners.is_empty() {
-            true
-        } else {
-            false
-        }
+        self.lottery_status == LotteryStatus::Finished && self.is_pools_equal() && !self.winners.is_empty()
     }
 
     // fn contains_entry(&self, account_id: &AccountId) -> bool {

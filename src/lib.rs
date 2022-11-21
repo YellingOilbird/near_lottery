@@ -99,7 +99,9 @@ mod tests {
     use near_sdk::{testing_env, ONE_YOCTO};
 
     fn user(user: &str) -> AccountId {
-        user.parse().unwrap()
+        (user.to_owned() + ".sub1.near")
+            .parse()
+            .unwrap()
     }
 
     fn token(token: &str) -> AccountId {
@@ -107,7 +109,7 @@ mod tests {
     }
 
     fn owner() -> AccountId {
-        "owner.near".parse().unwrap()
+        "owner".parse().unwrap()
     }
 
     fn get_owner(contract: &mut Contract) -> AccountId {
@@ -132,8 +134,9 @@ mod tests {
             contract_fee_ratio: 1000, //10%
             treasury_ratio: 0, //0% from contract_fee_ratio
             investor_ratio: 4000, //40% from contract_fee_ratio
-            treasury: user("treasury.near"),
-            investor: user("investor.near"),
+            treasury: user("treasury"),
+            investor: user("investor"),
+            accepted_subs: "sub.near".to_string(),
         };
         config.assert_valid();
         config
@@ -170,9 +173,18 @@ mod tests {
             .predecessor_account_id(owner())
             .attached_deposit(ONE_YOCTO)
             .build()
-        )
+        );
     }
 
+    fn change_subs(
+        contract: &mut Contract,
+        context: &mut VMContextBuilder
+    ) {
+        owner_env(context);
+        contract.change_accepted_subs("sub1.near".into());
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn enter_lottery_ft(
         token_id: &str,
         contract: &mut Contract,
@@ -224,11 +236,12 @@ mod tests {
 
         assert_eq!(lottery.entry_fee.0, entry_fee.0);
         assert_eq!(lottery.required_pool.0, entry_fee.0 * lottery_num_participants as u128);
-        println!(
-            "{:#?}", lottery
-        );
+        // println!(
+        //     "{:#?}", lottery
+        // );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn enter_lottery(
         contract: &mut Contract,
         context: &mut VMContextBuilder,
@@ -264,19 +277,17 @@ mod tests {
 
         assert_eq!(lottery.entry_fee.0, entry_fee.0);
         assert_eq!(lottery.required_pool.0, entry_fee.0 * lottery_num_participants as u128);
-        println!(
-            "{:#?}", lottery
-        );
         (entries_num, current_pool)
     }
 
     #[test]
     fn test_basics() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user.near"), 
+            &user("user"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(3 * ONE_NEAR), 
             6u32,
@@ -290,10 +301,11 @@ mod tests {
     #[should_panic(expected = "Already entered")]
     fn test_double_enter() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user.near"), 
+            &user("user"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR), 
             5u32,
@@ -305,7 +317,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user.near"), 
+            &user("user"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR), 
             5u32,
@@ -319,10 +331,11 @@ mod tests {
     #[should_panic]
     fn test_incorrect_entry_fee() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user.near"), 
+            &user("user"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 4), 
             5u32,
@@ -336,10 +349,11 @@ mod tests {
     #[should_panic]
     fn test_incorrect_num_participants() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user.near"), 
+            &user("user"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR), 
             11u32,
@@ -352,6 +366,8 @@ mod tests {
     #[test]
     fn test_modify_lottery_config() {
         let (mut contract, mut context) = contract_context();
+                change_subs(&mut contract, &mut context);
+
         owner_env(&mut context);
 
         contract.add_entry_fee(Some(near()), U128(20 * ONE_NEAR));
@@ -387,15 +403,15 @@ mod tests {
         );
         contract.remove_num_participants(25, BIG_LOTTERY.to_string());
         contract.remove_num_participants(25, SIMPLE_LOTTERY.to_string());
-        println!("{:?}", contract.get_contract_params()
-            .config
-            .num_participants_required 
-        );
+        // println!("{:?}", contract.get_contract_params()
+        //     .config
+        //     .num_participants_required 
+        // );
         contract.add_entry_fee(Some(token("usdn.near")), U128(20 * ONE_USN));
-        println!("{:?}", contract.get_contract_params()
-            .config
-            .entry_fees_required 
-        );
+        // println!("{:?}", contract.get_contract_params()
+        //     .config
+        //     .entry_fees_required 
+        // );
         assert!(
             !contract.get_contract_params()
                 .config
@@ -410,10 +426,11 @@ mod tests {
     #[test]
     fn test_finished_lottery() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user1.near"), 
+            &user("user1"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -424,7 +441,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user2.near"), 
+            &user("user2"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -435,7 +452,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user3.near"), 
+            &user("user3"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -446,7 +463,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user4.near"), 
+            &user("user4"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -457,7 +474,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user5.near"), 
+            &user("user5"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -468,7 +485,7 @@ mod tests {
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user6.near"), 
+            &user("user6"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_NEAR * 3), 
             6u32,
@@ -485,9 +502,9 @@ mod tests {
             params.fees_collected[0], (near(), U128(keeped_fees)),
             "Mismatched fees collected"
         );
-        println!(
-            "{:#?}", params
-        );
+        // println!(
+        //     "{:#?}", params
+        // );
         //4950000000000000000000000
         //0.05 -> 0.03 to treasury, 0.005 to investor, 0.15 keeped
         //30000000000000000000000 + 5000000000000000000000 + 15000000000000000000000
@@ -496,95 +513,99 @@ mod tests {
     #[test]
     fn test_finished_lottery_usdt() {
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
         owner_env(&mut context);
+
+        let total_referrer_reward = 6 * ratio(ONE_USN * 3, ONE_PERCENT_RATIO);
+
         contract.whitelist_token(token("usdt.near"));
         assert!(contract.get_contract_params().whitelisted_tokens.contains(&(token("usdt.near"))));
         contract.add_entry_fee(Some(token("usdt.near")), U128(3 * ONE_USN));
-
+        
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user1.near"), 
+            &user("user1"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             true,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user2.near"), 
+            &user("user2"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             false,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user3.near"), 
+            &user("user3"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             false,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user4.near"), 
+            &user("user4"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             false,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user5.near"), 
+            &user("user5"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             false,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         enter_lottery_ft(
             "usdt.near",
             &mut contract, 
             &mut context, 
-            &user("user6.near"), 
+            &user("user6"), 
             SIMPLE_LOTTERY.to_string(), 
             U128(ONE_USN * 3), 
             6u32,
             false,
             true,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
 
         let params = contract.get_contract_params();
         let contract_fees = ratio(18 * ONE_USN, params.config.contract_fee_ratio);
         // 0% and 40% takes from contract fees to investor and treasury
-        let keeped_fees = ratio(contract_fees, 6000);
+        let keeped_fees = ratio(contract_fees - total_referrer_reward, 6000);
         assert_eq!(
             params.fees_collected[0], (token("usdt.near"), U128(keeped_fees)),
             "Mismatched fees collected"
         );
-        println!(
-            "{:#?}", params
-        );
+        // println!(
+        //     "{:#?}", params
+        // );
         //4950000000000000000000000
         //0.05 -> 0.03 to treasury, 0.005 to investor, 0.15 keeped
         //30000000000000000000000 + 5000000000000000000000 + 15000000000000000000000
@@ -594,16 +615,21 @@ mod tests {
     fn test_finished_big_lottery() {
         let entry_fee = 3 * ONE_NEAR;
         let (mut contract, mut context) = contract_context();
+        change_subs(&mut contract, &mut context);
+        let total_refferer_reward = 50 * ratio(entry_fee, ONE_PERCENT_RATIO);
+
+        // 0.03 * 50
+
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user0.near"), 
+            &user("user0"), 
             BIG_LOTTERY.to_string(), 
             U128(entry_fee), 
             50u32,
             true,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         for index in 1u8..49u8 {
             let account = user(&("user".to_string().to_owned() + &index.to_string()));
@@ -616,41 +642,42 @@ mod tests {
                 50u32,
                 false,
                 false,
-                Some(user("referrer.near"))
+                Some(user("referrer"))
             );
         }
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user50.near"), 
+            &user("user50"), 
             BIG_LOTTERY.to_string(), 
             U128(entry_fee), 
             50u32,
             false,
             true,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         let params = contract.get_contract_params();
+        // println!(
+        //     "{:#?}", params
+        // );
         let contract_fees = 50 * entry_fee - ( (entry_fee / 2 * 25) + ( ( entry_fee / 10 + entry_fee ) * 15) + ( ( entry_fee / 2 + entry_fee ) * 10) );
         // 0% and 40% takes from contract fees to investor and treasury
-        let keeped_fees = ratio(contract_fees, 6000);
+        let keeped_fees = ratio(contract_fees - total_refferer_reward, 6000);
         assert_eq!(
             params.fees_collected[0], (near(), U128(keeped_fees)),
             "Mismatched fees collected"
         );
-        println!(
-            "{:#?}", params
-        );
+        
         enter_lottery(
             &mut contract, 
             &mut context, 
-            &user("user0.near"), 
+            &user("user0"), 
             BIG_LOTTERY.to_string(), 
             U128(entry_fee), 
             50u32,
             true,
             false,
-            Some(user("referrer.near"))
+            Some(user("referrer"))
         );
         //7200000000000000000000000 - 40%
         //10800000000000000000000000 - 60%

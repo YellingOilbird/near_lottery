@@ -18,9 +18,9 @@ pub struct StoredCashback {
 
 impl From<String> for LotteryType {
     fn from(s: String) -> Self {
-        if s == SIMPLE_LOTTERY.to_string() {
+        if s == *SIMPLE_LOTTERY {
             LotteryType::SimpleLottery
-        } else if s == BIG_LOTTERY.to_string() {
+        } else if s == *BIG_LOTTERY {
             LotteryType::BigLottery
         } else {
             panic!("Unknown lottery type")
@@ -50,9 +50,9 @@ impl LotteryConfig {
         }
     }
     pub fn assert_valid(&self) {
-        assert!(self.entry_fees.len() > 0);
-        assert!(self.num_participants.len() > 0);
-        assert!(self.big_lottery_num_participants.len() > 0);
+        assert!(!self.entry_fees.is_empty());
+        assert!(!self.num_participants.is_empty());
+        assert!(!self.big_lottery_num_participants.is_empty());
     }
 
     pub fn add_num_participants(&mut self, num: u32) {
@@ -60,7 +60,7 @@ impl LotteryConfig {
     }
 
     pub fn remove_num_participants(&mut self, num: u32) {
-        assert!(self.num_participants.len() >= 1, "Cannot remove last lottery num_participants");
+        assert!(!self.num_participants.is_empty(), "Cannot remove last lottery num_participants");
         let index = self.num_participants.iter().position(|x| x == &num).expect("invalid num to remove");
         self.num_participants.remove(index);
     }
@@ -80,13 +80,13 @@ impl LotteryConfig {
             self
                 .entry_fees
                 .entry(token_id)
-                .or_insert(vec![])
+                .or_default()
                 .push(fee)
         } else {
             self
                 .entry_fees
                 .entry(near())
-                .or_insert(vec![])
+                .or_default()
                 .push(fee)
         }
     }
@@ -96,7 +96,7 @@ impl LotteryConfig {
             let position = self
                 .entry_fees
                 .entry(token_id.clone())
-                .or_insert(vec![])
+                .or_default()
                 .iter()
                 .position(|x| x == &fee).expect("invalid fee to remove");
             (position, token_id)
@@ -104,7 +104,7 @@ impl LotteryConfig {
             let position = self
                 .entry_fees
                 .entry(near())
-                .or_insert(vec![])
+                .or_default()
                 .iter()
                 .position(|x| x == &fee).expect("invalid fee to remove");
             (position, near())
@@ -113,7 +113,7 @@ impl LotteryConfig {
         self
             .entry_fees
             .entry(token)
-            .or_insert(vec![])
+            .or_default()
             .remove(index);
     }
 }
@@ -183,9 +183,9 @@ impl Contract {
 
         let mut config = self.internal_lottery_config();
 
-        if lottery_type == SIMPLE_LOTTERY.to_string() {
+        if lottery_type == *SIMPLE_LOTTERY {
             config.add_num_participants(num);
-        } else if lottery_type == BIG_LOTTERY.to_string() {
+        } else if lottery_type == *BIG_LOTTERY {
             config.add_big_lottery_num_participants(num);
         }
 

@@ -7,6 +7,29 @@ uint::construct_uint!(
 
 pub const NEAR:&str = "near";
 
+pub(crate) fn match_token_id(account_id: &AccountId) -> String {
+    let binding = account_id.to_string();
+    let stringify_account = binding.as_str();
+    match stringify_account {
+        "usn" => "USN".to_string(),
+        "near" => "NEAR".to_string(),
+        "dac17f958d2ee523a2206206994597c13d831ec7.factory.bridge.near" => "USDT".to_string(),
+        "6b175474e89094c44da98b954eedeac495271d0f.factory.bridge.near" => "DAI".to_string(),
+        "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near" => "USDC".to_string(),
+        "wrap.near" => "WNEAR".to_string(),
+        "c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.factory.bridge.near" => "WETH".to_string(),
+        // testnet
+        "usdn.testnet" => "USN".to_string(),
+        "guacharo.testnet" => "GUA".to_string(),
+        "usdt.fakes.testnet" => "USDT".to_string(),
+        "dai.fakes.testnet" => "DAI".to_string(),
+        "usdc.fakes.testnet" => "USDC".to_string(),
+        "wrap.testnet" => "WNEAR".to_string(),
+        "weth.fakes.testnet" => "WETH".to_string(),
+        _ => unimplemented!()
+    }
+}
+
 pub(crate) fn near() -> AccountId {
     AccountId::new_unchecked(NEAR.to_string())
 }
